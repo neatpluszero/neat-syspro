@@ -697,6 +697,10 @@ Item {
         if (f.kind === "bin") {
             entries.push({ text: qsTr("Empty Recycle Bin"), icon: "bin", enabled: FileOps.binCount > 0, run: () => FileOps.emptyBin() });
             entries.push({ text: qsTr("Restore all"), icon: "restore", enabled: f.count > 0, run: () => root.restore() });
+            // Local change: the way back for a Recycle Bin that was unpinned.
+            if (!PlacesModel.isPinned(f.url)) {
+                entries.push({ text: qsTr("Pin to sidebar"), icon: "pin", run: () => PlacesModel.pin(root.folder.url) });
+            }
         }
         if (entries[entries.length - 1].separator) {
             entries.pop();
@@ -714,6 +718,10 @@ Item {
         if (place.kind === "bin") {
             entries.push({ separator: true });
             entries.push({ text: qsTr("Empty Recycle Bin"), icon: "menu-uninstall", danger: true, enabled: FileOps.binCount > 0, run: () => FileOps.emptyBin() });
+            if (place.pinned) {
+                entries.push({ separator: true });
+                entries.push({ text: qsTr("Unpin from sidebar"), icon: "unpin", run: () => PlacesModel.unpin(place.url) });
+            }
             openMenu(entries, item, false, x, y, 280);
             return;
         }
@@ -731,7 +739,7 @@ Item {
         if (formattable) {
             entries.push({ text: qsTr("Format…"), icon: "drive", run: () => root.formatDrive(place.udi, place.name) });
         }
-        if (place.kind === "pinned") {
+        if (place.pinned) {
             const pinned = place.url;
             entries.push({ separator: true });
             entries.push({ text: qsTr("Unpin from sidebar"), icon: "unpin", run: () => PlacesModel.unpin(pinned) });

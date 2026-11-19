@@ -122,6 +122,19 @@ void Settings::setPinnedPlaces(const QStringList &places)
     m_config->sync();
 }
 
+bool Settings::pinnedSeeded() const
+{
+    const KConfigGroup group(m_config, QStringLiteral("Sidebar"));
+    return group.readEntry("PinnedSeeded", false);
+}
+
+void Settings::setPinnedSeeded()
+{
+    KConfigGroup group(m_config, QStringLiteral("Sidebar"));
+    group.writeEntry("PinnedSeeded", true);
+    m_config->sync();
+}
+
 void Settings::write(const char *key, const QVariant &value)
 {
     KConfigGroup group(m_config, QStringLiteral("View"));

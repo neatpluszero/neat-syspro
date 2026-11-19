@@ -57,6 +57,13 @@ All apps:
 Files:
 
 - Sidebar: Recycle Bin is the first entry, above Home (`src/placesmodel.cpp`).
+- Sidebar: dragging a folder onto empty sidebar space pins it (`qml/Sidebar.qml`); the right-click
+  "Pin to sidebar" is unchanged.
+- Sidebar: the top section is one list of pins, each marked with a pin at the right; drag them up
+  and down to reorder (`PlacesModel::movePinned`). Recycle Bin, Home, Desktop… are pinned by
+  default and can be unpinned like any other.
+- Recycle Bin: items show thumbnails and open from where the bin keeps them, as in Dolphin
+  (`src/localpaths.h` maps bin addresses to the real files KIO reports).
 - The system disk is named after the running OS (os-release `NAME`, e.g. "Fedora Linux") instead of a
   hardcoded "Wild OS" (`src/drives.cpp`).
 - Search and folder sizes stay out of kernel file systems (`/proc`, `/sys`, `/dev`); a whole disk is sized

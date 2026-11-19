@@ -1,3 +1,4 @@
+#include "localpaths.h"
 #include "imageproviders.h"
 
 #include <KFileItem>
@@ -164,7 +165,7 @@ public:
             if (!guard) {
                 return;
             }
-            const KFileItem item(url);
+            const KFileItem item(LocalPaths::resolve(url));
             auto job = KIO::filePreview(KFileItemList{item}, size.isValid() ? size : QSize(256, 256));
             job->setScaleType(KIO::PreviewJob::ScaledAndCached);
             job->setIgnoreMaximumSize(false);

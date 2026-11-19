@@ -1,3 +1,4 @@
+#include "localpaths.h"
 #include "foldermodel.h"
 
 #include "drives.h"
@@ -753,8 +754,14 @@ void FolderModel::activate(int row)
         openUrl(e.url);
         return;
     }
+    // Local change: a file in the Recycle Bin opens from where the bin keeps
+    // it, as Dolphin does; only one KIO cannot place is turned down.
     if (isBin(m_url)) {
-        Q_EMIT failed(QCoreApplication::translate("FolderModel", "Files in the Recycle Bin cannot be opened. Restore it first, then open it from where it was."));
+        if (!LocalPaths::isLocal(e.url)) {
+            Q_EMIT failed(QCoreApplication::translate("FolderModel", "This file cannot be opened from the Recycle Bin. Restore it first, then open it from where it was."));
+            return;
+        }
+        FileOps::instance()->open({e.url});
         return;
     }
     // A shortcut to a folder opens that folder right here, as a .lnk to a
@@ -808,7 +815,10 @@ FolderModel::Entry FolderModel::makeEntry(const KFileItem &item, const QString &
     e.modified = modified.isValid() ? modified.toSecsSinceEpoch() : 0;
     e.sizeKey = e.isDir ? -1 : qint64(item.size());
     e.sizeText = e.isDir ? QString() : Format::size(e.sizeKey);
-    e.preview = !e.isDir && item.isLocalFile() && previewable(mime) && e.sizeKey < 100LL * 1024 * 1024;
+    // Local change: items in the Recycle Bin are real files too, so they
+    // get thumbnails like any other.
+    LocalPaths::remember(e.url, item.localPath());
+    e.preview = !e.isDir && LocalPaths::isLocal(e.url) && previewable(mime) && e.sizeKey < 100LL * 1024 * 1024;
 
     if (isBin(m_url)) {
         const KIO::UDSEntry uds = item.entry();

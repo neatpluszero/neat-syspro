@@ -42,6 +42,10 @@ public:
     // The folders pinned to the sidebar, as addresses, in the order pinned.
     QStringList pinnedPlaces() const;
     void setPinnedPlaces(const QStringList &places);
+    // Local change: whether the usual places (Recycle Bin, Home, Desktop…)
+    // have been put in the pinned list, which happens once.
+    bool pinnedSeeded() const;
+    void setPinnedSeeded();
 
     // "xlarge", "large", "icons" (medium), "small", "list", "details",
     // "tiles" or "content", remembered for each folder the way

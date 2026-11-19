@@ -8,6 +8,7 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
+#include <QHash>
 #include <QStandardPaths>
 
 namespace
@@ -27,6 +28,9 @@ QString pinAddress(const QUrl &url)
 {
     if (url.isLocalFile()) {
         return QUrl::fromLocalFile(QDir::cleanPath(url.toLocalFile())).toString();
+    }
+    if (url.scheme() == QStringLiteral("trash")) {
+        return QStringLiteral("trash:/");
     }
     return url.adjusted(QUrl::RemovePassword | QUrl::StripTrailingSlash | QUrl::NormalizePathSegments).toString();
 }
@@ -56,40 +60,67 @@ PlacesModel::PlacesModel(QObject *parent)
 void PlacesModel::reload()
 {
     QList<Place> places;
-    auto folder = [&places](const QString &name, const QString &icon, QStandardPaths::StandardLocation location) {
-        const QString path = QStandardPaths::writableLocation(location);
+    // Local change: the top of the sidebar is one list of pins that can be
+    // reordered and unpinned. The usual places are simply pinned by default.
+    struct Known {
+        QString name;
+        QString icon;
+    };
+    QHash<QString, Known> known;
+    QStringList defaults{pinAddress(FolderModel::binUrl())};
+    auto standard = [&known, &defaults](const QString &name, const QString &icon, QStandardPaths::StandardLocation location) {
+        const QString path = QDir::cleanPath(QStandardPaths::writableLocation(location));
         // An XDG folder that points at Home itself (common for Desktop on
         // minimal setups) would be a second Home; leave it out.
-        if (path.isEmpty() || (location != QStandardPaths::HomeLocation && QDir::cleanPath(path) == QDir::homePath())) {
+        if (path.isEmpty() || path == QStringLiteral(".") || known.contains(path)) {
             return;
         }
-        places.append({name, icon, QUrl::fromLocalFile(path), QStringLiteral("place"), QString(), false});
+        known.insert(path, {name, icon});
+        defaults.append(QUrl::fromLocalFile(path).toString());
     };
-    // Local change: the Recycle Bin sits at the top, above Home, not at the bottom.
-    places.append({QCoreApplication::translate("PlacesModel", "Recycle Bin"), QStringLiteral("bin"), FolderModel::binUrl(), QStringLiteral("bin"), QString(), false});
-    folder(QCoreApplication::translate("PlacesModel", "Home"), QStringLiteral("home"), QStandardPaths::HomeLocation);
-    folder(QCoreApplication::translate("PlacesModel", "Desktop"), QStringLiteral("desktop"), QStandardPaths::DesktopLocation);
-    folder(QCoreApplication::translate("PlacesModel", "Documents"), QStringLiteral("document"), QStandardPaths::DocumentsLocation);
-    folder(QCoreApplication::translate("PlacesModel", "Downloads"), QStringLiteral("download"), QStandardPaths::DownloadLocation);
-    folder(QCoreApplication::translate("PlacesModel", "Pictures"), QStringLiteral("pictures"), QStandardPaths::PicturesLocation);
-    folder(QCoreApplication::translate("PlacesModel", "Music"), QStringLiteral("music"), QStandardPaths::MusicLocation);
-    folder(QCoreApplication::translate("PlacesModel", "Videos"), QStringLiteral("videos"), QStandardPaths::MoviesLocation);
-    const QStringList pinned = Settings::instance()->pinnedPlaces();
-    for (const QString &address : pinned) {
+    standard(QCoreApplication::translate("PlacesModel", "Home"), QStringLiteral("home"), QStandardPaths::HomeLocation);
+    standard(QCoreApplication::translate("PlacesModel", "Desktop"), QStringLiteral("desktop"), QStandardPaths::DesktopLocation);
+    standard(QCoreApplication::translate("PlacesModel", "Documents"), QStringLiteral("document"), QStandardPaths::DocumentsLocation);
+    standard(QCoreApplication::translate("PlacesModel", "Downloads"), QStringLiteral("download"), QStandardPaths::DownloadLocation);
+    standard(QCoreApplication::translate("PlacesModel", "Pictures"), QStringLiteral("pictures"), QStandardPaths::PicturesLocation);
+    standard(QCoreApplication::translate("PlacesModel", "Music"), QStringLiteral("music"), QStandardPaths::MusicLocation);
+    standard(QCoreApplication::translate("PlacesModel", "Videos"), QStringLiteral("videos"), QStandardPaths::MoviesLocation);
+    QStringList pinned = Settings::instance()->pinnedPlaces();
+    if (!Settings::instance()->pinnedSeeded()) {
+        // Once: the usual places first, then whatever was pinned before.
+        for (const QString &address : std::as_const(pinned)) {
+            if (!defaults.contains(address)) {
+                defaults.append(address);
+            }
+        }
+        pinned = defaults;
+        Settings::instance()->setPinnedPlaces(pinned);
+        Settings::instance()->setPinnedSeeded();
+    }
+    for (const QString &address : std::as_const(pinned)) {
         const QUrl url(address);
+        if (url.scheme() == QStringLiteral("trash")) {
+            places.append({QCoreApplication::translate("PlacesModel", "Recycle Bin"), QStringLiteral("bin"), FolderModel::binUrl(), QStringLiteral("bin"), QString(), false, true});
+            continue;
+        }
         if (isNetwork(url)) {
             // A share is named after its folder, as Windows names a pinned
             // network folder; the NAS itself by its own name.
             const QString folder = url.adjusted(QUrl::StripTrailingSlash).fileName();
-            places.append({folder.isEmpty() ? url.host() : folder, QStringLiteral("server"), url, QStringLiteral("pinned"), QString(), false});
+            places.append({folder.isEmpty() ? url.host() : folder, QStringLiteral("server"), url, QStringLiteral("pinned"), QString(), false, true});
             continue;
         }
         if (!url.isLocalFile()) {
             continue;
         }
         const QString path = QDir::cleanPath(url.toLocalFile());
+        const auto it = known.constFind(path);
+        if (it != known.constEnd()) {
+            places.append({it->name, it->icon, QUrl::fromLocalFile(path), QStringLiteral("place"), QString(), false, true});
+            continue;
+        }
         const QString name = QFileInfo(path).fileName();
-        places.append({name.isEmpty() ? path : name, QStringLiteral("folder"), QUrl::fromLocalFile(path), QStringLiteral("pinned"), QString(), false});
+        places.append({name.isEmpty() ? path : name, QStringLiteral("folder"), QUrl::fromLocalFile(path), QStringLiteral("pinned"), QString(), false, true});
     }
     places.append({QString(), QString(), QUrl(), QStringLiteral("separator"), QString(), false});
     places.append({QCoreApplication::translate("PlacesModel", "This computer"), QStringLiteral("computer"), FolderModel::computerUrl(), QStringLiteral("computer"), QString(), false});
@@ -122,6 +153,7 @@ QHash<int, QByteArray> PlacesModel::roleNames() const
         {KindRole, "kind"},
         {UdiRole, "udi"},
         {RemovableRole, "removable"},
+        {PinnedRole, "pinned"},
     };
 }
 
@@ -147,6 +179,8 @@ QVariant PlacesModel::data(const QModelIndex &index, int role) const
         return p.udi;
     case RemovableRole:
         return p.removable;
+    case PinnedRole:
+        return p.pinned;
     }
     return {};
 }
@@ -182,6 +216,7 @@ QVariantMap PlacesModel::get(int row) const
         {QStringLiteral("kind"), p.kind},
         {QStringLiteral("udi"), p.udi},
         {QStringLiteral("removable"), p.removable},
+        {QStringLiteral("pinned"), p.pinned},
     };
 }
 
@@ -190,13 +225,13 @@ bool PlacesModel::canPin(const QUrl &url) const
     if (rowFor(url) >= 0) {
         return false;
     }
-    return isNetwork(url) || (url.isLocalFile() && QFileInfo(url.toLocalFile()).isDir());
+    return isNetwork(url) || url.scheme() == QStringLiteral("trash") || (url.isLocalFile() && QFileInfo(url.toLocalFile()).isDir());
 }
 
 bool PlacesModel::isPinned(const QUrl &url) const
 {
     const int row = rowFor(url);
-    return row >= 0 && m_places.at(row).kind == QStringLiteral("pinned");
+    return row >= 0 && m_places.at(row).pinned;
 }
 
 void PlacesModel::pin(const QUrl &url)
@@ -217,6 +252,28 @@ void PlacesModel::unpin(const QUrl &url)
     }
     QStringList pinned = Settings::instance()->pinnedPlaces();
     pinned.removeAll(pinAddress(m_places.at(rowFor(url)).url));
+    Settings::instance()->setPinnedPlaces(pinned);
+    reload();
+}
+
+void PlacesModel::movePinned(const QUrl &url, int beforeRow)
+{
+    if (!isPinned(url)) {
+        return;
+    }
+    const QString moving = pinAddress(m_places.at(rowFor(url)).url);
+    QString before;
+    for (int row = std::max(0, beforeRow); row < m_places.size(); ++row) {
+        const Place &place = m_places.at(row);
+        if (place.pinned && pinAddress(place.url) != moving) {
+            before = pinAddress(place.url);
+            break;
+        }
+    }
+    QStringList pinned = Settings::instance()->pinnedPlaces();
+    pinned.removeAll(moving);
+    const qsizetype at = before.isEmpty() ? -1 : pinned.indexOf(before);
+    pinned.insert(at < 0 ? pinned.size() : at, moving);
     Settings::instance()->setPinnedPlaces(pinned);
     reload();
 }

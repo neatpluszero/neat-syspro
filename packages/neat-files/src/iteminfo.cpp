@@ -1,3 +1,4 @@
+#include "localpaths.h"
 #include "iteminfo.h"
 
 #include "drives.h"
@@ -93,6 +94,7 @@ bool ItemInfo::fetchStats()
                 return;
             }
             m_stats.insert(url, job->error() ? KIO::UDSEntry() : job->statResult());
+            LocalPaths::remember(url, m_stats.value(url).stringValue(KIO::UDSEntry::UDS_LOCAL_PATH));
             if (--*left == 0) {
                 reload();
             }
@@ -177,7 +179,7 @@ void ItemInfo::reload()
             m_modified = Format::longDate(item.time(KFileItem::ModificationTime));
         }
         static const QStringList previewTypes = KIO::PreviewJob::supportedMimeTypes();
-        m_preview = !m_isDir && url.isLocalFile() && std::any_of(previewTypes.cbegin(), previewTypes.cend(), [&mime](const QString &t) {
+        m_preview = !m_isDir && LocalPaths::isLocal(url) && std::any_of(previewTypes.cbegin(), previewTypes.cend(), [&mime](const QString &t) {
             return t == mime.name() || (t.endsWith(QStringLiteral("/*")) && mime.name().startsWith(t.left(t.size() - 1)));
         });
         if (m_isDir) {

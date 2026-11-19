@@ -25,6 +25,7 @@ public:
         KindRole,
         UdiRole,
         RemovableRole,
+        PinnedRole,
     };
 
     static PlacesModel *create(QQmlEngine *, QJSEngine *);
@@ -44,6 +45,9 @@ public:
     Q_INVOKABLE bool isPinned(const QUrl &url) const;
     Q_INVOKABLE void pin(const QUrl &url);
     Q_INVOKABLE void unpin(const QUrl &url);
+    // Local change: puts a pinned folder just above the place in that row,
+    // or last among the pinned ones when the row is past them.
+    Q_INVOKABLE void movePinned(const QUrl &url, int beforeRow);
     Q_INVOKABLE void mount(const QString &udi);
 
 Q_SIGNALS:
@@ -60,6 +64,7 @@ private:
         QString kind;
         QString udi;
         bool removable = false;
+        bool pinned = false;
     };
     QList<Place> m_places;
     int m_revision = 0;

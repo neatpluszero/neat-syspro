@@ -41,6 +41,7 @@ qt_add_qml_module(neat-files
         src/fileops.cpp src/fileops.h
         src/newitems.cpp
         src/iteminfo.cpp src/iteminfo.h
+        src/localpaths.h
         src/sharemodel.cpp src/sharemodel.h
         src/fileextras.cpp
         src/zipjob.cpp src/zipjob.h

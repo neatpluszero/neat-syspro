@@ -96,6 +96,96 @@ Item {
         }
     }
 
+    // Local change: a pinned folder is dragged up or down to change the
+    // order. reorderFrom is the row being dragged, reorderBefore the row
+    // the line is drawn above (one past the last pinned row for the end).
+    property int reorderFrom: -1
+    property int reorderBefore: -1
+
+    function reorderTo(scenePosition) {
+        let first = -1;
+        let last = -1;
+        for (let i = 0; i < list.count; ++i) {
+            if (PlacesModel.get(i).pinned) {
+                first = first < 0 ? i : first;
+                last = i;
+            }
+        }
+        if (first < 0) {
+            reorderBefore = -1;
+            return;
+        }
+        const y = list.mapFromItem(null, scenePosition.x, scenePosition.y).y + list.contentY;
+        let row = last + 1;
+        for (let i = first; i <= last; ++i) {
+            const item = list.itemAtIndex(i);
+            if (item && y < item.y + item.height / 2) {
+                row = i;
+                break;
+            }
+        }
+        reorderBefore = row;
+    }
+
+    function finishReorder(url) {
+        const from = reorderFrom;
+        const before = reorderBefore;
+        reorderFrom = -1;
+        reorderBefore = -1;
+        if (from >= 0 && before >= 0 && before !== from && before !== from + 1) {
+            PlacesModel.movePinned(url, before);
+        }
+    }
+
+    // Local change: a folder dragged onto the sidebar, anywhere that is not
+    // a place (those take the drop as a move or copy into them), is pinned.
+    function pinnable(urls) {
+        return (urls || []).filter(url => PlacesModel.canPin(url));
+    }
+
+    DropArea {
+        id: pinDrop
+        anchors.fill: parent
+        property bool offered: false
+        onEntered: drag => {
+            offered = sidebar.pinnable(drag.urls).length > 0;
+            drag.accepted = offered;
+            if (offered) {
+                drag.accept(Qt.LinkAction);
+            }
+        }
+        onExited: offered = false
+        onDropped: drop => {
+            const folders = sidebar.pinnable(drop.urls);
+            offered = false;
+            if (folders.length === 0) {
+                return;
+            }
+            drop.accept(Qt.LinkAction);
+            for (const url of folders) {
+                PlacesModel.pin(url);
+            }
+        }
+    }
+
+    Rectangle {
+        visible: pinDrop.containsDrag && pinDrop.offered
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.margins: 8
+        height: 34
+        radius: UI.Style.radiusXs
+        color: "transparent"
+        border.width: 1
+        border.color: UI.Style.accent
+        UI.Label {
+            anchors.centerIn: parent
+            text: qsTr("Pin to sidebar")
+            color: UI.Style.accent
+        }
+    }
+
     ListView {
         id: list
         anchors.fill: parent
@@ -132,6 +222,7 @@ Item {
             required property string kind
             required property string udi
             required property bool removable
+            required property bool pinned
             required property int index
             readonly property bool current: index === sidebar.currentRow
             readonly property bool focusMarked: list.activeFocus && index === list.currentIndex
@@ -176,6 +267,25 @@ Item {
                     }
                 }
 
+                DragHandler {
+                    enabled: place.pinned
+                    target: null
+                    acceptedButtons: Qt.LeftButton
+                    onActiveChanged: {
+                        if (active) {
+                            sidebar.reorderFrom = place.index;
+                            sidebar.reorderTo(centroid.scenePosition);
+                        } else {
+                            sidebar.finishReorder(place.url);
+                        }
+                    }
+                    onCentroidChanged: {
+                        if (active) {
+                            sidebar.reorderTo(centroid.scenePosition);
+                        }
+                    }
+                }
+
                 TapHandler {
                     acceptedButtons: Qt.MiddleButton | Qt.RightButton
                     onTapped: (point, pressed) => {
@@ -200,11 +310,24 @@ Item {
                 UI.Label {
                     anchors.left: icon.right
                     anchors.leftMargin: 10
-                    anchors.right: eject.visible ? eject.left : parent.right
+                    anchors.right: eject.visible ? eject.left : pinMark.visible ? pinMark.left : parent.right
                     anchors.rightMargin: 6
                     anchors.verticalCenter: parent.verticalCenter
                     text: place.name
                     font.weight: place.current ? UI.Style.weightMedium : UI.Style.weightRegular
+                }
+
+                // Local change: pinned places carry a pin at the right.
+                UI.Icon {
+                    id: pinMark
+                    visible: place.pinned
+                    anchors.right: parent.right
+                    anchors.rightMargin: 9
+                    anchors.verticalCenter: parent.verticalCenter
+                    name: "pin"
+                    size: 12
+                    strokeWidth: 1.6
+                    color: UI.Style.inkSubtle
                 }
 
                 UI.IconButton {
@@ -232,6 +355,20 @@ Item {
                 }
             }
         }
+    }
+
+    // Where a pinned folder being dragged would land.
+    Rectangle {
+        readonly property Item above: sidebar.reorderBefore > 0 ? list.itemAtIndex(sidebar.reorderBefore - 1) : null
+        readonly property Item below: sidebar.reorderBefore >= 0 ? list.itemAtIndex(sidebar.reorderBefore) : null
+        visible: sidebar.reorderFrom >= 0 && sidebar.reorderBefore >= 0 && (above !== null || below !== null)
+            && sidebar.reorderBefore !== sidebar.reorderFrom && sidebar.reorderBefore !== sidebar.reorderFrom + 1
+        x: list.x + 6
+        width: list.width - 12
+        height: 2
+        radius: 1
+        color: UI.Style.accent
+        y: list.y - list.contentY - 1 + (sidebar.reorderBefore > sidebar.reorderFrom && above ? above.y + above.height : below ? below.y : 0)
     }
 
     // The edge between the places and the files: drag it to make the

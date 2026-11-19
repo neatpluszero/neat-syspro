@@ -1,3 +1,4 @@
+#include "localpaths.h"
 #include "fileops.h"
 
 #include "drives.h"
@@ -365,8 +366,13 @@ void FileOps::watchJob(KJob *job, const QString &verb)
     });
 }
 
-void FileOps::open(const QList<QUrl> &urls)
+void FileOps::open(const QList<QUrl> &given)
 {
+    // Local change: an item in the Recycle Bin is opened as the file it is.
+    QList<QUrl> urls;
+    for (const QUrl &url : given) {
+        urls.append(LocalPaths::resolve(url));
+    }
     for (const QUrl &url : urls) {
         // A Windows program goes to the app that runs Windows programs (App
         // Bridge). KIO counts an .exe as something that would run itself and
@@ -497,8 +503,12 @@ QString FileOps::defaultAppName(const QUrl &url) const
     return service ? service->name() : QString();
 }
 
-void FileOps::openWith(const QList<QUrl> &urls, const QString &appId, bool makeDefault)
+void FileOps::openWith(const QList<QUrl> &given, const QString &appId, bool makeDefault)
 {
+    QList<QUrl> urls;
+    for (const QUrl &url : given) {
+        urls.append(LocalPaths::resolve(url));
+    }
     const KService::Ptr service = KService::serviceByStorageId(appId);
     if (!service || urls.isEmpty()) {
         return;
