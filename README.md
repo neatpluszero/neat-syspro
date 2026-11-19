@@ -26,6 +26,17 @@ In the `neat-syspro` Incus workspace (Fedora 44, same Qt/KF6 as the host):
     scripts/run neat-remote
     scripts/install-local         # app menu entries in ~/.local; --remove undoes it
 
+## Install as RPMs
+
+    ws run -- scripts/build-rpm        # in the container; writes ./rpm/*.rpm
+    sudo dnf install ./rpm/*.rpm       # on the host
+
+One package per app (`neat-files`, `neat-taskmanager`, `neat-remote`), the shared `neat-ui`, and
+`neat-syspro`, which pulls in all three. dnf fetches what they need. Rebuild and reinstall after a
+Fedora release upgrade or a Qt update. `sudo dnf remove neat-ui` takes everything out again.
+
+## Requirements
+
 The host needs the Qt 6 / KF6 runtime of a KDE Plasma install. Files uses Ark for archives. Remote also needs `qtermwidget`,
 FreeRDP 3 (`freerdp-libs`), `qtkeychain-qt6` and `openssh-clients`. Remote uses Qt's private GUI
 API, so it has to be rebuilt when Qt is updated.
