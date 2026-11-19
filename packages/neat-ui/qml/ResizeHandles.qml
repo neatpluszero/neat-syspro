@@ -1,0 +1,44 @@
+import QtQuick
+import QtQuick.Window
+
+// Resize grips just inside the edge of a frameless window, with larger
+// corners so they are easy to catch, as on Windows. The top edge stops
+// short of the window buttons so it never steals a click meant for close
+// (the Store's grips covered them). From neat-files FilesWindow.
+Item {
+    id: handles
+
+    property bool active: Window.window ? Window.window.visibility !== Window.Maximized && Window.window.visibility !== Window.FullScreen : false
+    property real buttonsWidth: 3 * Style.windowButtonWidth
+    property int edge: 5
+    property int corner: 16
+
+    anchors.fill: parent
+    z: 2000
+
+    // The last press on a grip. The first press hands the pointer to KWin
+    // for the resize, so no double-click event ever arrives; a second press
+    // on the same grip soon after is the double click.
+    property int lastEdges: 0
+    property double lastPress: 0
+
+    component Grip: MouseArea {
+        property int edges
+        enabled: handles.active
+        hoverEnabled: true
+        acceptedButtons: Qt.LeftButton
+        onPressed: {
+            if (Window.window)
+                Window.window.startSystemResize(edges);
+        }
+    }
+
+    Grip { edges: Qt.LeftEdge; x: 0; y: handles.corner; width: handles.edge; height: parent.height - 2 * handles.corner; cursorShape: Qt.SizeHorCursor }
+    Grip { edges: Qt.RightEdge; x: parent.width - handles.edge; y: handles.corner; width: handles.edge; height: parent.height - 2 * handles.corner; cursorShape: Qt.SizeHorCursor }
+    Grip { edges: Qt.TopEdge; x: handles.corner; y: 0; width: parent.width - 2 * handles.corner - handles.buttonsWidth; height: 6; cursorShape: Qt.SizeVerCursor }
+    Grip { edges: Qt.BottomEdge; x: handles.corner; y: parent.height - handles.edge; width: parent.width - 2 * handles.corner; height: handles.edge; cursorShape: Qt.SizeVerCursor }
+    Grip { edges: Qt.TopEdge | Qt.LeftEdge; x: 0; y: 0; width: handles.corner; height: handles.corner; cursorShape: Qt.SizeFDiagCursor }
+    Grip { edges: Qt.TopEdge | Qt.RightEdge; x: parent.width - 10; y: 0; width: 10; height: 10; cursorShape: Qt.SizeBDiagCursor }
+    Grip { edges: Qt.BottomEdge | Qt.LeftEdge; x: 0; y: parent.height - handles.corner; width: handles.corner; height: handles.corner; cursorShape: Qt.SizeBDiagCursor }
+    Grip { edges: Qt.BottomEdge | Qt.RightEdge; x: parent.width - handles.corner; y: parent.height - handles.corner; width: handles.corner; height: handles.corner; cursorShape: Qt.SizeFDiagCursor }
+}

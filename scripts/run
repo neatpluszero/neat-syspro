@@ -1,0 +1,8 @@
+#!/bin/sh
+# Runs a program from ./dist against the Neat.UI module built next to it.
+#   scripts/run <program> [args]
+here=$(CDPATH= cd -- "$(dirname -- "$(readlink -f -- "$0")")/.." && pwd)
+prog=${1:?usage: run <program> [args]}; shift
+export QML_IMPORT_PATH="$here/dist/lib64/qt6/qml${QML_IMPORT_PATH:+:$QML_IMPORT_PATH}"
+export PATH="$here/dist/bin:$PATH"
+exec "$here/dist/bin/$prog" "$@"

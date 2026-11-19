@@ -1,0 +1,99 @@
+cmake_minimum_required(VERSION 3.25)
+project(neat-files VERSION 0.1.0 LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+include(GNUInstallDirs)
+
+find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Widgets DBus Qml Quick QuickControls2 Svg Concurrent)
+find_package(KF6KIO REQUIRED)
+find_package(KF6Solid REQUIRED)
+find_package(KF6Config REQUIRED)
+find_package(KF6CoreAddons REQUIRED)
+find_package(KF6Service REQUIRED)
+find_package(KF6WindowSystem REQUIRED)
+find_package(KF6Purpose REQUIRED)
+find_package(KF6Archive REQUIRED)
+find_package(KF6FileMetaData REQUIRED)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(SECCOMP REQUIRED IMPORTED_TARGET libseccomp)
+
+qt_standard_project_setup(REQUIRES 6.8)
+
+qt_add_executable(neat-files src/main.cpp)
+target_compile_definitions(neat-files PRIVATE NEAT_FILES_VERSION="${PROJECT_VERSION}")
+
+file(GLOB_RECURSE QML_SOURCES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} qml/*.qml)
+set_source_files_properties(qml/Metrics.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+
+qt_add_qml_module(neat-files
+    URI Neat.Files
+    QML_FILES ${QML_SOURCES}
+    SOURCES
+        src/app.cpp src/app.h
+        src/format.cpp src/format.h
+        src/settings.cpp src/settings.h
+        src/drives.cpp src/drives.h
+        src/driveformat.cpp src/driveformat.h
+        src/formatsafety.cpp src/formatsafety.h
+        src/foldermodel.cpp src/foldermodel.h
+        src/placesmodel.cpp src/placesmodel.h
+        src/fileops.cpp src/fileops.h
+        src/newitems.cpp
+        src/iteminfo.cpp src/iteminfo.h
+        src/sharemodel.cpp src/sharemodel.h
+        src/fileextras.cpp
+        src/zipjob.cpp src/zipjob.h
+        src/filemeta.cpp src/filemeta.h
+        src/imageproviders.cpp src/imageproviders.h
+        src/previewsource.cpp src/previewsource.h
+        src/programs.cpp src/programs.h
+        src/protection.cpp src/protection.h
+        src/protectionops.cpp
+        src/safeboxplan.cpp src/safeboxplan.h
+)
+
+target_include_directories(neat-files PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
+target_link_libraries(neat-files PRIVATE
+    Qt6::Widgets Qt6::DBus Qt6::Qml Qt6::Quick Qt6::QuickControls2 Qt6::Svg Qt6::Concurrent
+    KF6::KIOCore KF6::KIOGui KF6::KIOWidgets KF6::Solid KF6::ConfigCore
+    KF6::CoreAddons KF6::Service KF6::WindowSystem KF6::Purpose
+    KF6::Archive KF6::FileMetaData
+)
+
+# The safe box: a small program of its own, so the box outlives the Files
+# window it was opened from.
+add_executable(neat-safebox src/safebox/main.cpp src/safeboxplan.cpp src/programs.cpp)
+target_include_directories(neat-safebox PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(neat-safebox PRIVATE Qt6::Core Qt6::DBus KF6::KIOCore KF6::Service PkgConfig::SECCOMP)
+
+if(NEAT_FILES_TESTS)
+    find_package(Qt6 REQUIRED COMPONENTS Test)
+    enable_testing()
+    qt_add_executable(formatsafety-test tests/formatsafety_test.cpp src/formatsafety.cpp)
+    target_include_directories(formatsafety-test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(formatsafety-test PRIVATE Qt6::Core Qt6::Test)
+    add_test(NAME formatsafety COMMAND formatsafety-test)
+endif()
+
+install(TARGETS neat-files neat-safebox RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(PROGRAMS data/remove-details DESTINATION ${CMAKE_INSTALL_PREFIX}/libexec/neat-files)
+install(FILES data/io.github.neatpluszero.NeatFiles.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+
+# Translations: i18n/<package>_<lang>.ts, compiled to .qm and loaded by
+# Neat.UI for the language chosen in Settings.
+find_package(Qt6 REQUIRED COMPONENTS LinguistTools)
+file(GLOB TS_FILES ${CMAKE_CURRENT_SOURCE_DIR}/i18n/*.ts)
+set(QM_FILES)
+foreach(ts ${TS_FILES})
+    get_filename_component(name ${ts} NAME_WE)
+    set(qm ${CMAKE_CURRENT_BINARY_DIR}/i18n/${name}.qm)
+    add_custom_command(OUTPUT ${qm}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/i18n
+        COMMAND Qt6::lrelease -silent ${ts} -qm ${qm}
+        DEPENDS ${ts} VERBATIM)
+    list(APPEND QM_FILES ${qm})
+endforeach()
+add_custom_target(translations ALL DEPENDS ${QM_FILES})
+install(FILES ${QM_FILES} DESTINATION ${CMAKE_INSTALL_DATADIR}/neat/translations)

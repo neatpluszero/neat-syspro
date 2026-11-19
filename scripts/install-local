@@ -1,0 +1,25 @@
+#!/bin/sh
+# Adds Files, Task Manager and Remote to the app menu of this user, pointing at ./dist.
+# Nothing outside ~/.local is touched; --remove takes it out again.
+set -eu
+here=$(CDPATH= cd -- "$(dirname -- "$(readlink -f -- "$0")")/.." && pwd)
+apps=${XDG_DATA_HOME:-$HOME/.local/share}/applications
+icons=${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps
+entries="NeatFiles:neat-files NeatTaskManager:neat-taskmanager NeatRemote:neat-remote"
+mkdir -p "$apps" "$icons"
+# Entries from before the rename to Neat.
+rm -f "$apps/org.wildos.files.desktop" "$apps/org.wildos.taskmanager.desktop" "$icons/org.wildos.taskmanager.svg" "$icons/wildos-process.svg" "$icons/wildos-windows-mode.svg"
+for id in $entries; do
+    file=io.github.neatpluszero.${id%%:*}.desktop
+    prog=${id##*:}
+    rm -f "$apps/$file"
+    [ "${1:-}" = "--remove" ] && continue
+    sed -e "s|^Exec=$prog|Exec=$here/scripts/run $prog|" "$here/dist/share/applications/$file" > "$apps/$file"
+done
+for icon in "$here"/dist/share/icons/hicolor/scalable/apps/*.svg; do
+    [ -e "$icon" ] || continue
+    rm -f "$icons/$(basename "$icon")"
+    [ "${1:-}" = "--remove" ] || cp "$icon" "$icons/"
+done
+update-desktop-database "$apps" 2>/dev/null || true
+[ "${1:-}" = "--remove" ] || echo "Installed. Launch from the app menu, or: $here/scripts/run neat-files"

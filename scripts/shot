@@ -1,0 +1,14 @@
+#!/bin/sh
+# Container-only helper: scripts/shot <name> <app> [args]  -> build/shots/<name>.png
+# Runs the app on a headless X display and saves a screenshot after a few seconds.
+here=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+name=$1; shift
+export XDG_RUNTIME_DIR=/tmp/xrt-$(id -u); mkdir -p "$XDG_RUNTIME_DIR"; chmod 700 "$XDG_RUNTIME_DIR"
+mkdir -p "$here/build/shots"
+Xvfb :9 -screen 0 1400x900x24 >/dev/null 2>&1 & xvfb=$!
+sleep 1
+export DISPLAY=:9 QT_QPA_PLATFORM=xcb QT_QUICK_BACKEND=software
+dbus-run-session -- sh -c '
+    timeout "${SHOT_SECONDS:-9}" "$0/scripts/run" "$@" > "$0/build/shots/last.log" 2>&1 &
+    sleep "${SHOT_DELAY:-6}"; ${SHOT_PRE:-true}; import -window root "$0/build/shots/'"$name"'.png"; wait' "$here" "$@"
+kill $xvfb; wait $xvfb 2>/dev/null

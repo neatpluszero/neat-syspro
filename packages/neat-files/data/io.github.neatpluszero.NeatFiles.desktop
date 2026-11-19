@@ -1,0 +1,22 @@
+[Desktop Entry]
+Type=Application
+Name=Files
+Name[fr]=Fichiers
+GenericName=File manager
+GenericName[fr]=Gestionnaire de fichiers
+Comment=Browse, open and organise your files
+Comment[fr]=Parcourez, ouvrez et organisez vos fichiers
+Exec=neat-files %U
+Icon=system-file-manager
+Terminal=false
+StartupNotify=true
+StartupWMClass=neat-files
+Categories=Qt;System;FileTools;FileManager;Core;
+MimeType=inode/directory;
+X-KDE-Protocols=file,trash
+Keywords=explorer;file explorer;folders;documents;browse;
+Actions=new-window;
+
+[Desktop Action new-window]
+Name=New window
+Exec=neat-files
