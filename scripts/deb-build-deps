@@ -1,0 +1,20 @@
+#!/bin/sh
+# Installs what scripts/build-deb needs. Run as root, in a Debian 13 or
+# Ubuntu 26.04 container:
+#   scripts/deb-build-deps
+# On Debian 13 this turns on trixie-backports for FreeRDP, which Remote needs
+# at 3.32 or later.
+set -eu
+here=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+export DEBIAN_FRONTEND=noninteractive
+. /etc/os-release
+if [ "${VERSION_CODENAME:-}" = trixie ]; then
+    echo "deb http://deb.debian.org/debian trixie-backports main" > /etc/apt/sources.list.d/neat-backports.list
+    printf 'Package: src:freerdp3\nPin: release n=trixie-backports\nPin-Priority: 500\n' > /etc/apt/preferences.d/neat-freerdp
+fi
+apt-get update
+apt-get install -y --no-install-recommends build-essential debhelper ca-certificates git
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+cp -r "$here/packaging/debian" "$tmp/debian"
+apt-get build-dep -y --no-install-recommends "$tmp"

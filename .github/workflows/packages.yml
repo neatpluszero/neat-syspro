@@ -1,0 +1,93 @@
+name: Packages
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: packages-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # git inside the job containers does not trust the checkout, so the scripts
+  # are told the commit instead of asking for it.
+  NEAT_REV: ${{ github.sha }}
+  NEAT_RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') && '1' || '' }}
+
+jobs:
+  rpm:
+    name: RPM (Fedora 44)
+    runs-on: ubuntu-latest
+    container: fedora:44
+    steps:
+      - name: Install build tools
+        run: dnf install -y rpm-build dnf5-plugins git tar gzip
+      - uses: actions/checkout@v7
+      - name: Install build dependencies
+        run: dnf builddep -y packaging/neat-syspro.spec
+      - name: Build
+        run: NEAT_REV=$(printf %.7s "$NEAT_REV") scripts/build-rpm
+      - uses: actions/upload-artifact@v7
+        with:
+          name: rpm-fedora44
+          path: rpm/*.rpm
+          if-no-files-found: error
+
+  deb:
+    name: Deb (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    container: ${{ matrix.image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Debian 13
+            id: debian13
+            image: debian:13
+          - name: Ubuntu 26.04
+            id: ubuntu26.04
+            image: ubuntu:26.04
+    steps:
+      - name: Install git
+        run: apt-get update && apt-get install -y --no-install-recommends git ca-certificates
+      - uses: actions/checkout@v7
+      - name: Install build dependencies
+        run: scripts/deb-build-deps
+      - name: Build
+        run: NEAT_REV=$(printf %.7s "$NEAT_REV") scripts/build-deb
+      - uses: actions/upload-artifact@v7
+        with:
+          name: deb-${{ matrix.id }}
+          path: deb/*.deb
+          if-no-files-found: error
+
+  release:
+    name: Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [rpm, deb]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check the tag against the spec
+        run: |
+          version=$(sed -n 's/^Version: *//p' packaging/neat-syspro.spec)
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match Version: $version in packaging/neat-syspro.spec"
+            exit 1
+          fi
+      - uses: actions/download-artifact@v8
+        with:
+          path: packages
+          merge-multiple: true
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes packages/*

@@ -2,7 +2,7 @@
 
 Files (file manager), Task Manager and Remote (SSH terminal, SFTP and Remote Desktop client) from
 [Wild OS](https://github.com/wildorigins/wildos) (GPL-3.0-or-later), untied from the rest of Wild OS
-so they run on a plain Fedora KDE desktop.
+so they run on a plain KDE desktop (Fedora, Debian, Ubuntu).
 
 `packages/` holds upstream packages copied from the commit in `UPSTREAM` and renamed:
 
@@ -35,6 +35,26 @@ One package per app (`neat-files`, `neat-taskmanager`, `neat-remote`), the share
 `neat-syspro`, which pulls in all three. dnf fetches what they need. Rebuild and reinstall after a
 Fedora release upgrade or a Qt update. `sudo dnf remove neat-ui` takes everything out again.
 
+## Install as .deb
+
+In a Debian 13 or Ubuntu 26.04 container (as root for the first line):
+
+    scripts/deb-build-deps             # build dependencies; on Debian 13 also turns on trixie-backports
+    scripts/build-deb                  # writes ./deb/*.deb
+    sudo apt install ./deb/*.deb       # on a machine running the same release
+
+The same five packages as the RPMs. A package only installs on the release it was built on, which is
+named at the end of its version (`~debian13`, `~ubuntu26.04`). On Debian 13, `neat-remote` needs
+FreeRDP 3.32 from `trixie-backports`, so backports has to be enabled where it is installed; Files and
+Task Manager do not need it. `sudo apt remove neat-ui` takes everything out again.
+
+## Packages from GitHub
+
+`.github/workflows/packages.yml` builds the RPMs (Fedora 44) and the .debs (Debian 13, Ubuntu 26.04)
+on every push to `main` and every pull request; they are attached to the workflow run as artifacts.
+To publish a release, set `Version:` in `packaging/neat-syspro.spec`, commit, and push the tag
+`v<version>`: the packages are attached to a GitHub Release of that name.
+
 ## Requirements
 
 The host needs the Qt 6 / KF6 runtime of a KDE Plasma install. Files uses Ark for archives. Remote also needs `qtermwidget`,
@@ -49,7 +69,7 @@ All apps:
   `io.github.neatpluszero.NeatFiles` / `NeatTaskManager` / `NeatRemote`) so they can sit beside a
   Wild OS install.
 - No `wildosrc`, `/etc/wildos` or Wild OS theme files; colours come from the desktop's `kdeglobals`,
-  the clock from the regional format. The Debian packaging is gone.
+  the clock from the regional format. Upstream's Debian packaging is replaced by `packaging/`.
 - Messages say "Task Manager", "Remote" or "the system" instead of "Wild OS".
 - Settings saved under the old Wild OS names (`wildosfilesrc`, `wildos-taskmanagerrc`,
   `wildoswindowsrc`) are copied to the Neat names on first run; the old files are left in place.

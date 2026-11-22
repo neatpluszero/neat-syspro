@@ -1,0 +1,36 @@
+#!/bin/sh
+# Builds the .deb packages into ./deb. Run in a Debian 13 or Ubuntu 26.04
+# container that has had scripts/deb-build-deps run in it:
+#   scripts/build-deb
+# Then on a machine running the same release:  sudo apt install ./deb/*.deb
+#
+# NEAT_REV names the commit when git cannot be asked; NEAT_RELEASE=1 leaves the
+# date and commit out of the version, for a tagged release.
+set -eu
+here=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+version=$(sed -n 's/^Version: *//p' "$here/packaging/neat-syspro.spec")
+. /etc/os-release
+revision=1
+if [ "${NEAT_RELEASE:-}" != 1 ]; then
+    revision=1+$(date +%Y%m%d)git${NEAT_REV:-$(git -C "$here" rev-parse --short HEAD 2>/dev/null || echo local)}
+fi
+# The release it was built on is part of the version: the packages only install there.
+full=$version-$revision~$ID$VERSION_ID
+work=${DEB_WORKDIR:-$HOME/debbuild}
+rm -rf "$work"
+mkdir -p "$work/neat-syspro"
+tar -C "$here" --exclude=./build --exclude=./dist --exclude=./rpm --exclude=./deb --exclude=./.git -cf - . \
+    | tar -C "$work/neat-syspro" -xf -
+cp -r "$here/packaging/debian" "$work/neat-syspro/debian"
+cat > "$work/neat-syspro/debian/changelog" <<END
+neat-syspro ($full) unstable; urgency=medium
+
+  * Built by scripts/build-deb.
+
+ -- dw5 <dw5@users.noreply.github.com>  $(date -R)
+END
+(cd "$work/neat-syspro" && dpkg-buildpackage -b -us -uc)
+mkdir -p "$here/deb"
+rm -f "$here"/deb/*.deb
+cp "$work"/*.deb "$here/deb/"
+ls -1 "$here/deb"

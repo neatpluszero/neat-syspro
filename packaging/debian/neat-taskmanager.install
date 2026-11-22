@@ -1,0 +1,5 @@
+usr/bin/neat-taskmanager
+usr/share/applications/io.github.neatpluszero.NeatTaskManager.desktop
+usr/share/icons/hicolor/scalable/apps/io.github.neatpluszero.NeatTaskManager.svg
+usr/share/icons/hicolor/scalable/apps/neat-process.svg
+usr/share/neat/translations/neat-taskmanager_*.qm

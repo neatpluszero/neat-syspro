@@ -8,8 +8,12 @@ include(GNUInstallDirs)
 find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Widgets DBus Network Qml Quick QuickWidgets QuickControls2)
 # Qt6::GuiPrivate only for QPlatformNativeInterface: the wl_surface behind a
 # window, which Qt 6.8 offers no public way to reach.
-# Local change: Qt 6.10 and later only define it when asked for by name.
-find_package(Qt6 REQUIRED COMPONENTS GuiPrivate)
+# Local change: Qt 6.10 and later only define it when asked for by name;
+# before that (Debian 13 has 6.8) Qt6Gui defines it and there is no
+# GuiPrivate package to find.
+if(Qt6Gui_VERSION VERSION_GREATER_EQUAL 6.10)
+    find_package(Qt6 REQUIRED COMPONENTS GuiPrivate)
+endif()
 find_package(Qt6Keychain REQUIRED)
 find_package(qtermwidget6 REQUIRED)
 find_package(KF6Config REQUIRED)

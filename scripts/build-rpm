@@ -2,13 +2,18 @@
 # Builds the RPMs into ./rpm. Run inside the workspace container:
 #   ws run -- scripts/build-rpm
 # Then on the host:  sudo dnf install ./rpm/*.rpm
+#
+# NEAT_REV names the commit when git cannot be asked; NEAT_RELEASE=1 leaves the
+# date and commit out of the version, for a tagged release.
 set -eu
 here=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 version=$(sed -n 's/^Version: *//p' "$here/packaging/neat-syspro.spec")
-snapshot=1.$(date +%Y%m%d)git$(git -C "$here" rev-parse --short HEAD 2>/dev/null || echo local)
+snapshot=1.$(date +%Y%m%d)git${NEAT_REV:-$(git -C "$here" rev-parse --short HEAD 2>/dev/null || echo local)}
+# A tagged release: no date and commit in the version.
+[ "${NEAT_RELEASE:-}" = 1 ] && snapshot=1
 top=${RPM_TOPDIR:-$HOME/rpmbuild}
 mkdir -p "$top/SOURCES" "$top/SPECS"
-tar -C "$here" --exclude=./build --exclude=./dist --exclude=./rpm --exclude=./.git \
+tar -C "$here" --exclude=./build --exclude=./dist --exclude=./rpm --exclude=./deb --exclude=./.git \
     --transform "s|^\.|neat-syspro-$version|" -czf "$top/SOURCES/neat-syspro-$version.tar.gz" .
 cp "$here/packaging/neat-syspro.spec" "$top/SPECS/"
 rpmbuild -bb --define "_topdir $top" --define "snapshot $snapshot" "$top/SPECS/neat-syspro.spec"

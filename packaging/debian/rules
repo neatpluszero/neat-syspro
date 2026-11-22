@@ -1,0 +1,24 @@
+#!/usr/bin/make -f
+# The four CMake projects are built and installed by the root Makefile, as in
+# packaging/neat-syspro.spec; debhelper only splits the result into packages.
+%:
+	dh $@
+
+override_dh_auto_configure override_dh_auto_build override_dh_auto_test:
+
+override_dh_auto_install:
+	$(MAKE) BUILD=$(CURDIR)/obj PREFIX=/usr DESTDIR=$(CURDIR)/debian/tmp \
+	        CMAKE_EXTRA="-DCMAKE_BUILD_TYPE=Release"
+
+override_dh_auto_clean:
+	rm -rf obj
+
+# Release builds carry no debug information to split out.
+override_dh_strip:
+	dh_strip --no-automatic-dbgsym
+
+# Remote uses Qt's private GUI API, which changes with every Qt release: tie
+# it to the Qt it was built against, Debian revisions of that Qt included.
+QT_GUI_VERSION := $(shell dpkg-query -W -f='$${source:Upstream-Version}' libqt6gui6 | sed 's/+dfsg.*//')
+override_dh_gencontrol:
+	dh_gencontrol -- -Vqt6:PrivateDepends="libqt6gui6 (>= $(QT_GUI_VERSION)), libqt6gui6 (<< $(QT_GUI_VERSION).1~)"

@@ -1,0 +1,107 @@
+Source: neat-syspro
+Section: kde
+Priority: optional
+Maintainer: dw5 <dw5@users.noreply.github.com>
+Homepage: https://github.com/neatpluszero/neat-syspro
+Standards-Version: 4.7.2
+Rules-Requires-Root: no
+Build-Depends: debhelper-compat (= 13),
+               cmake,
+               ninja-build,
+               g++,
+               pkgconf,
+               qt6-base-dev,
+               qt6-base-private-dev,
+               qt6-declarative-dev,
+               qt6-declarative-dev-tools,
+               qt6-svg-dev,
+               qt6-tools-dev,
+               qt6-l10n-tools,
+               libkf6kio-dev,
+               libkf6solid-dev,
+               libkf6config-dev,
+               libkf6coreaddons-dev,
+               libkf6service-dev,
+               libkf6windowsystem-dev,
+               libkf6purpose-dev,
+               libkf6archive-dev,
+               libkf6filemetadata-dev,
+               libseccomp-dev,
+               libksysguard-dev,
+               freerdp3-dev (>= 3.32),
+               libwinpr3-dev (>= 3.32),
+               libqtermwidget-dev,
+               libutf8proc-dev,
+               qtkeychain-qt6-dev,
+               libwayland-dev,
+               wayland-protocols
+
+Package: neat-syspro
+Architecture: all
+Depends: neat-files (= ${binary:Version}),
+         neat-taskmanager (= ${binary:Version}),
+         neat-remote (= ${binary:Version}),
+         ${misc:Depends}
+Description: Files, Task Manager and Remote, from Wild OS, for a plain KDE desktop
+ Installs all three Neat apps: Files, Task Manager and Remote.
+
+Package: neat-ui
+Architecture: any
+Depends: qml6-module-qtquick,
+         qml6-module-qtquick-controls,
+         qml6-module-qtquick-templates,
+         qml6-module-qtquick-layouts,
+         qml6-module-qtquick-window,
+         qml6-module-qtquick-effects,
+         qml6-module-qtquick-shapes,
+         qml6-module-qtquick-dialogs,
+         qml6-module-qtcore,
+         qml6-module-qtqml-workerscript,
+         qt6-svg-plugins,
+         ${shlibs:Depends},
+         ${misc:Depends}
+Description: QML controls the Neat apps are drawn with
+ The Neat.UI QML module shared by Files, Task Manager and Remote.
+
+Package: neat-files
+Architecture: any
+Depends: neat-ui (= ${binary:Version}),
+         kio6,
+         udisks2,
+         python3,
+         qml6-module-qtmultimedia,
+         qml6-module-qtquick-pdf,
+         qt6-image-formats-plugins,
+         ${shlibs:Depends},
+         ${misc:Depends}
+Recommends: ark,
+            kio-extras,
+            bubblewrap,
+            libimage-exiftool-perl,
+            qpdf,
+            python3-mutagen
+Description: File manager laid out like File Explorer
+ Tabs in the title bar, a breadcrumb address bar, a command bar, and the
+ Recycle Bin, Home folders and drives in the sidebar. Folders are read and
+ changed through KIO.
+
+Package: neat-taskmanager
+Architecture: any
+Depends: neat-ui (= ${binary:Version}),
+         ksystemstats,
+         ${shlibs:Depends},
+         ${misc:Depends}
+Description: Task Manager: processes, performance, startup apps and services
+ See and end what is running, and how hard the computer is working.
+
+Package: neat-remote
+Architecture: any
+Depends: neat-ui (= ${binary:Version}),
+         openssh-client,
+         qt6-wayland,
+         ${qt6:PrivateDepends},
+         ${shlibs:Depends},
+         ${misc:Depends}
+Description: SSH terminal, SFTP and Remote Desktop client
+ Hosts, keys, snippets and port forwarding for SSH, with a file browser over
+ SFTP, and Remote Desktop (RDP) sessions through FreeRDP.
