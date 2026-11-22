@@ -155,29 +155,54 @@ QPixmap DragIconProvider::requestPixmap(const QString &id, QSize *size, const QS
 
 namespace
 {
+class ThumbnailResponse;
+
+// What a thumbnail response and its preview job share. The response lives
+// and dies on the image loader thread, the job on the main thread, and
+// either can go first (a whole folder of responses is dropped at once when
+// the Recycle Bin is emptied). So neither holds the other: the job reaches
+// the response only through here, under the lock, and the response reaches
+// the job only by posting to the application object.
+struct ThumbnailTask {
+    QMutex mutex;
+    ThumbnailResponse *response = nullptr;
+    std::atomic_bool cancelled{false};
+    // Main thread only.
+    QPointer<KIO::PreviewJob> job;
+    QImage image;
+};
+
 class ThumbnailResponse : public QQuickImageResponse
 {
 public:
     ThumbnailResponse(const QUrl &url, const QSize &size)
+        : m_task(std::make_shared<ThumbnailTask>())
     {
+        m_task->response = this;
         // KIO jobs belong to the main thread.
-        QMetaObject::invokeMethod(QCoreApplication::instance(), [this, url, size, guard = QPointer<ThumbnailResponse>(this)] {
-            if (!guard) {
+        QMetaObject::invokeMethod(QCoreApplication::instance(), [task = m_task, url, size] {
+            if (task->cancelled.load()) {
                 return;
             }
             const KFileItem item(LocalPaths::resolve(url));
             auto job = KIO::filePreview(KFileItemList{item}, size.isValid() ? size : QSize(256, 256));
             job->setScaleType(KIO::PreviewJob::ScaledAndCached);
             job->setIgnoreMaximumSize(false);
-            m_job = job;
-            QObject::connect(job, &KIO::PreviewJob::gotPreview, job, [guard](const KFileItem &, const QPixmap &pixmap) {
-                if (guard) {
-                    guard->m_image = pixmap.toImage();
-                }
+            task->job = job;
+            QObject::connect(job, &KIO::PreviewJob::gotPreview, job, [task](const KFileItem &, const QPixmap &pixmap) {
+                task->image = pixmap.toImage();
             });
-            QObject::connect(job, &KJob::result, job, [guard] {
-                if (guard) {
-                    Q_EMIT guard->finished();
+            QObject::connect(job, &KJob::result, job, [task] {
+                const QMutexLocker lock(&task->mutex);
+                // Posted while the lock keeps the response alive; once
+                // queued, the response dropping its posted events on
+                // destruction keeps it safe.
+                if (ThumbnailResponse *response = task->response) {
+                    QMetaObject::invokeMethod(response, [task, image = task->image] {
+                        if (task->response) {
+                            task->response->deliver(image);
+                        }
+                    }, Qt::QueuedConnection);
                 }
             });
         }, Qt::QueuedConnection);
@@ -185,6 +210,10 @@ public:
 
     ~ThumbnailResponse() override
     {
+        {
+            const QMutexLocker lock(&m_task->mutex);
+            m_task->response = nullptr;
+        }
         stop();
     }
 
@@ -203,22 +232,28 @@ public:
         stop();
     }
 
+    void deliver(const QImage &image)
+    {
+        m_image = image;
+        Q_EMIT finished();
+    }
+
 private:
     void stop()
     {
-        // Responses can die on the image loader thread; the job lives on
-        // the main one.
-        if (KIO::PreviewJob *job = m_job.data()) {
-            QMetaObject::invokeMethod(job, [job = QPointer<KIO::PreviewJob>(job)] {
-                if (job) {
-                    job->kill();
-                }
-            }, Qt::QueuedConnection);
+        if (m_task->cancelled.exchange(true)) {
+            return;
         }
+        // The job may already be gone; only the main thread can tell.
+        QMetaObject::invokeMethod(QCoreApplication::instance(), [task = m_task] {
+            if (task->job) {
+                task->job->kill();
+            }
+        }, Qt::QueuedConnection);
     }
 
+    std::shared_ptr<ThumbnailTask> m_task;
     QImage m_image;
-    QPointer<KIO::PreviewJob> m_job;
 };
 }
 
